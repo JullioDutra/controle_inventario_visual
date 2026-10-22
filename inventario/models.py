@@ -66,6 +66,7 @@ class Equipamento(models.Model):
     # Colunas extras da planilha que o sistema não conhece (modelo, marca, ...).
     extras = models.JSONField(default=dict, blank=True)
     ausente = models.BooleanField("Ausente no último TopDesk", default=False)
+    ultima_conferencia = models.DateTimeField("Última conferência física", null=True, blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 
@@ -87,6 +88,8 @@ class Historico(models.Model):
         AUSENTE = "ausente", "Ausente"
         POSICAO = "posicao", "Posição"
         SETOR = "setor", "Setor/planta"
+        NOTA = "nota", "Nota"
+        CONFERENCIA = "conferencia", "Conferência"
 
     asset_id = models.CharField(max_length=60, blank=True, db_index=True)
     evento = models.CharField(max_length=20, choices=Evento.choices)

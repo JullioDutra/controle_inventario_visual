@@ -1,12 +1,15 @@
 import io
 from collections import OrderedDict
-from datetime import date
+from datetime import date, timedelta
+from urllib.parse import urlencode
 
+from django.conf import settings
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
@@ -47,6 +50,8 @@ def painel(request):
         "total": total, "tipos": tipos, "status_tot": status_tot, "setores": setores, "pavimentos": pavs, "sem_pos": sem_pos,
         "alertas": sum(1 for a in qualidade.verificar() if a["sev"] == "alta"),
         "ausentes": Equipamento.objects.filter(ausente=True).count(),
+        "pendencias": [(k, nome, _pendencia(Equipamento.objects.all(), k).count()) for k, nome in PENDENCIAS.items()],
+        "dias": settings.DIAS_CONFERENCIA,
     })
 
 
@@ -88,6 +93,33 @@ def editor(request):
 ORDENACAO = {"asset_id", "tipo", "status", "responsavel", "setor__nome", "pavimento__nome", "serial"}
 
 
+PENDENCIAS = {
+    "sem_responsavel": "Laptops operacionais sem responsável",
+    "sem_setor": "Sem setor",
+    "sem_posicao": "Sem posição na planta",
+    "a_instalar": "A instalar",
+    "conferencia": "Sem conferência recente",
+}
+
+
+def _limite_conferencia():
+    return timezone.now() - timedelta(days=settings.DIAS_CONFERENCIA)
+
+
+def _pendencia(qs, p):
+    if p == "sem_responsavel":
+        return qs.filter(tipo="laptop", status="operacional", responsavel="", ausente=False)
+    if p == "sem_setor":
+        return qs.filter(setor__isnull=True, ausente=False)
+    if p == "sem_posicao":
+        return qs.filter(Q(pavimento__isnull=True) | Q(pos_x__isnull=True), ausente=False)
+    if p == "a_instalar":
+        return qs.filter(status="instalar", ausente=False)
+    if p == "conferencia":
+        return qs.filter(Q(ultima_conferencia__isnull=True) | Q(ultima_conferencia__lt=_limite_conferencia()), ausente=False)
+    return qs
+
+
 def _filtrar(request):
     g = request.GET
     qs = Equipamento.objects.select_related("setor", "pavimento")
@@ -105,6 +137,7 @@ def _filtrar(request):
         qs = qs.filter(pavimento_id=g["pavimento"])
     if g.get("ausente") == "1":
         qs = qs.filter(ausente=True)
+    qs = _pendencia(qs, g.get("p"))
     q = (g.get("q") or "").strip()
     if q:
         qs = qs.filter(Q(asset_id__icontains=q) | Q(serial__icontains=q) | Q(responsavel__icontains=q) | Q(obs__icontains=q)
@@ -122,20 +155,35 @@ def lista(request):
     return render(request, "inventario/lista.html", {
         "pag": pag, "total": pag.paginator.count, "qs": sem_page.urlencode(), "g": request.GET,
         "tipos": Equipamento.Tipo.choices, "status": Equipamento.Status.choices,
-        "setores": Setor.objects.all(), "pavimentos": Pavimento.objects.all(),
+        "setores": Setor.objects.all(), "pavimentos": Pavimento.objects.all(), "pendencias": PENDENCIAS, "dias": settings.DIAS_CONFERENCIA,
     })
+
+
+ROTULOS = {"asset_id": "Asset ID", "tipo": "Tipo", "status": "Status", "responsavel": "Responsável", "serial": "Nº série",
+           "fornecedor": "Fornecedor", "setor": "Setor", "pavimento": "Andar", "obs": "Obs"}
 
 
 def equipamento_form(request, pk=None):
     obj = get_object_or_404(Equipamento, pk=pk) if pk else None
+    antes = {c: str(getattr(obj, c) or "") for c in ROTULOS} if obj else {}
+    antes_disp = {c: (getattr(obj, f"get_{c}_display")() if c in ("tipo", "status") else str(getattr(obj, c) or "")) for c in ROTULOS} if obj else {}
     form = EquipamentoForm(request.POST or None, instance=obj)
     if request.method == "POST" and form.is_valid():
         e = form.save()
-        Historico.objects.create(asset_id=e.asset_id, evento="alterado" if obj else "novo", origem="manual",
-                                 detalhe=("Edição manual: " + ", ".join(form.changed_data)) if obj else "Criado manualmente")
+        if obj:
+            difs = []
+            for c in form.changed_data:
+                dep = getattr(e, f"get_{c}_display")() if c in ("tipo", "status") else str(getattr(e, c) or "")
+                difs.append(f"{ROTULOS[c]}: {antes_disp[c] or '—'} → {dep or '—'}")
+            detalhe = "Edição manual · " + " · ".join(difs) if difs else "Salvo sem alterações"
+        else:
+            detalhe = "Criado manualmente"
+        Historico.objects.create(asset_id=e.asset_id, evento="alterado" if obj else "novo", origem="manual", detalhe=detalhe)
         messages.success(request, f"{e.asset_id} salvo.")
         return redirect("lista")
-    return render(request, "inventario/equipamento_form.html", {"form": form, "obj": obj})
+    return render(request, "inventario/equipamento_form.html", {
+        "form": form, "obj": obj, "historico": Historico.objects.filter(asset_id=obj.asset_id)[:60] if obj else [],
+        "dias": settings.DIAS_CONFERENCIA})
 
 
 @require_POST
@@ -243,4 +291,55 @@ def relatorio_pdf(request):
     pdf = relatorio.gerar_pdf(pavimento_ids=ids or None, pinos="1" in g.getlist("pinos") or "pinos" not in g, lista=g.get("lista") == "1")
     r = HttpResponse(pdf, content_type="application/pdf")
     r["Content-Disposition"] = f'{"attachment" if g.get("baixar") == "1" else "inline"}; filename="inventario-fsbr-{date.today():%Y-%m-%d}.pdf"'
+    return r
+
+
+# ---------------- dia a dia: busca, setores, conferência, etiquetas ----------------
+def buscar(request):
+    """Busca rápida do cabeçalho: se o código bate exatamente com um Asset ID/série, abre direto o equipamento."""
+    q = (request.GET.get("q") or "").strip()
+    if q:
+        exato = Equipamento.objects.filter(Q(asset_id__iexact=q) | Q(serial__iexact=q))
+        if exato.count() == 1:
+            return redirect("equipamento_editar", pk=exato.first().pk)
+    return redirect(reverse("lista") + "?" + urlencode({"q": q}))
+
+
+def setores_gerenciar(request):
+    setores = Setor.objects.annotate(n_eq=Count("equipamentos", distinct=True), n_areas=Count("areas", distinct=True))
+    return render(request, "inventario/setores_gerenciar.html", {
+        "setores": setores,
+        "urls": {"editar": reverse("api_setor_editar", args=[0]), "mesclar": reverse("api_setor_mesclar", args=[0]),
+                 "excluir": reverse("api_setor_excluir", args=[0]), "criar": reverse("api_setor_criar")},
+    })
+
+
+def conferencia(request):
+    g = request.GET
+    dias = int(g["dias"]) if (g.get("dias") or "").isdigit() else settings.DIAS_CONFERENCIA
+    limite = timezone.now() - timedelta(days=dias)
+    qs = Equipamento.objects.filter(ausente=False).select_related("setor", "pavimento")
+    if g.get("setor") == "none":
+        qs = qs.filter(setor__isnull=True)
+    elif g.get("setor"):
+        qs = qs.filter(setor_id=g["setor"])
+    if g.get("pavimento"):
+        qs = qs.filter(pavimento_id=g["pavimento"])
+    itens = list(qs.order_by("setor__nome", "asset_id"))
+    for e in itens:
+        e.ok = bool(e.ultima_conferencia and e.ultima_conferencia >= limite)
+    conferidos = sum(1 for e in itens if e.ok)
+    return render(request, "inventario/conferencia.html", {
+        "itens": itens, "conferidos": conferidos, "total": len(itens), "dias": dias, "g": g,
+        "setores": Setor.objects.all(), "pavimentos": Pavimento.objects.all(), "so_pendentes": g.get("pendentes") == "1",
+        "url_conferir": reverse("api_conferir")})
+
+
+def etiquetas(request):
+    """PDF de etiquetas (QR + código de barras Code128 do Asset ID). `ids=1,2,3` ou os mesmos filtros da lista."""
+    ids = [int(i) for i in (request.GET.get("ids") or "").split(",") if i.isdigit()]
+    qs = Equipamento.objects.filter(pk__in=ids) if ids else _filtrar(request)
+    qs = qs.select_related("setor", "pavimento")[:600]
+    r = HttpResponse(relatorio.gerar_etiquetas(list(qs)), content_type="application/pdf")
+    r["Content-Disposition"] = f'inline; filename="etiquetas-fsbr-{date.today():%Y-%m-%d}.pdf"'
     return r

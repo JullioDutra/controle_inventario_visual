@@ -61,3 +61,6 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
+
+# Conferência física: após quantos dias um equipamento conta como "sem conferência".
+DIAS_CONFERENCIA = int(os.environ.get("DIAS_CONFERENCIA", "180"))

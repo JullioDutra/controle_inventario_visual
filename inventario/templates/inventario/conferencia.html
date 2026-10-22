@@ -1,0 +1,29 @@
+{% extends "inventario/base.html" %}
+{% load static %}
+{% block titulo %}Conferência física{% endblock %}
+{% block conteudo %}
+<div class="grid g2">
+<div class="card">
+  <h2 style="margin-top:0">Conferência física</h2>
+  <p class="mut">Percorra o local e <b>leia o código de barras/QR</b> da etiqueta (ou digite o Asset ID/série e Enter). Cada leitura marca o equipamento como conferido hoje e fica no histórico. Sem conferência há mais de <b>{{ dias }} dias</b> = pendente.</p>
+  <input class="scan" id="scan" placeholder="Leia ou digite o Asset ID / série e pressione Enter" autofocus autocomplete="off">
+  <div id="flash"></div>
+  <form method="get" class="tools" style="margin-top:12px">
+    <select name="setor"><option value="">Todos os setores</option><option value="none" {% if g.setor == 'none' %}selected{% endif %}>Sem setor</option>{% for s in setores %}<option value="{{ s.pk }}" {% if g.setor == s.pk|stringformat:'s' %}selected{% endif %}>{{ s.nome }}</option>{% endfor %}</select>
+    <select name="pavimento"><option value="">Todos os andares</option>{% for p in pavimentos %}<option value="{{ p.pk }}" {% if g.pavimento == p.pk|stringformat:'s' %}selected{% endif %}>{{ p.nome }}</option>{% endfor %}</select>
+    <label class="chk">dias <input type="number" name="dias" value="{{ dias }}" min="1" style="width:80px"></label>
+    <label class="chk"><input type="checkbox" name="pendentes" value="1" {% if so_pendentes %}checked{% endif %}> só pendentes</label>
+    <button class="b">Filtrar</button></form>
+  <div class="prog"><i id="barra" style="width:{% if total %}{% widthratio conferidos total 100 %}{% else %}0{% endif %}%"></i></div>
+  <p><b id="nconf">{{ conferidos }}</b> de <b>{{ total }}</b> conferidos neste filtro</p>
+  <button class="b p" id="marcar">Marcar selecionados como conferidos</button>
+</div>
+<div class="card" style="grid-column:1/-1"><div class="tw" style="max-height:60vh"><table><thead><tr><th><input type="checkbox" id="todos"></th><th>Asset ID</th><th>Tipo</th><th>Responsável</th><th>Setor</th><th>Andar</th><th>Última conferência</th></tr></thead><tbody id="corpo">
+{% for e in itens %}{% if not so_pendentes or not e.ok %}<tr data-id="{{ e.pk }}" data-aid="{{ e.asset_id }}" class="{% if e.ok %}ok-row{% endif %}">
+  <td><input type="checkbox" class="sel"></td><td><a href="{% url 'equipamento_editar' e.pk %}"><b>{{ e.asset_id }}</b></a></td><td>{{ e.get_tipo_display }}</td><td>{{ e.responsavel|default:"—" }}</td>
+  <td>{{ e.setor.nome|default:"—" }}</td><td>{{ e.pavimento.nome|default:"—" }}</td><td class="ult">{% if e.ultima_conferencia %}{{ e.ultima_conferencia|date:"d/m/Y" }}{% else %}<span class="mut">nunca</span>{% endif %}</td></tr>{% endif %}
+{% empty %}<tr><td colspan="7" class="mut">Nenhum equipamento neste filtro.</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+<script>window.URL_CONFERIR = "{{ url_conferir }}";</script>
+{% endblock %}
+{% block scripts %}<script src="{% static 'inventario/js/comum.js' %}"></script><script src="{% static 'inventario/js/conferencia.js' %}"></script>{% endblock %}

@@ -20,6 +20,7 @@
     const l = $('#lado'), s = setor(setorId); l.innerHTML = '';
     const c1 = document.createElement('div'); c1.className = 'card';
     c1.innerHTML = `<h3>Setores (${D.setores.length}) <button class="b" id="novo" style="float:right;padding:2px 8px">+ Novo setor</button></h3>
+      <p class="mut" style="margin:0 0 8px">Para renomear, mesclar ou excluir vários setores use <a href="/setores/gerenciar/">Gerenciar setores</a>.</p>
       ${novo ? `<form id="fnovo" class="tools"><input name="nome" placeholder="Nome do setor" required style="flex:1;min-width:0" autofocus><input type="color" name="cor" value="${corAleatoria()}" style="padding:0;width:38px"><button class="b p">Criar</button></form>` : ''}
       <div id="lista">${D.setores.map((x) => { const n = areasDe(x.id).length; return `<div class="item ${x.id === setorId ? 'sel' : ''}" data-id="${x.id}"><span><span class="sw" style="background:${x.cor}"></span>${esc(x.nome)}</span><span class="mut">${n ? n + ' área' + (n > 1 ? 's' : '') : 'sem área'}</span></div>`; }).join('') || '<span class="mut">Nenhum setor. Crie o primeiro.</span>'}</div>`;
     l.append(c1);

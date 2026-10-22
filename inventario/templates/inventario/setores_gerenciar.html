@@ -1,0 +1,21 @@
+{% extends "inventario/base.html" %}
+{% load static %}
+{% block titulo %}Gerenciar setores{% endblock %}
+{% block conteudo %}
+<div class="card">
+  <div class="tools"><h2 style="margin:0">Gerenciar setores</h2><span class="mut">Renomear, mudar a cor, mesclar ou excluir. As áreas desenhadas na planta continuam em <a href="{% url 'editor' %}">Setores na planta</a>.</span></div>
+  <form id="novo" class="tools"><input name="nome" placeholder="Novo setor…" required><input type="color" name="cor" value="#1f6feb" style="padding:0;width:38px"><button class="b p">Criar setor</button></form>
+  <div class="tw"><table id="tab"><thead><tr><th>Cor</th><th>Nome</th><th>Equipamentos</th><th>Áreas na planta</th><th>Ações</th></tr></thead><tbody>
+  {% for s in setores %}<tr data-id="{{ s.pk }}" data-nome="{{ s.nome }}" data-cor="{{ s.cor }}">
+    <td><input type="color" value="{{ s.cor }}" class="cor" style="padding:0;width:38px"></td>
+    <td><input class="nome" value="{{ s.nome }}" style="min-width:220px"></td>
+    <td><a href="{% url 'lista' %}?setor={{ s.pk }}">{{ s.n_eq }}</a></td>
+    <td>{% if s.n_areas %}{{ s.n_areas }}{% else %}<span class="mut">sem área</span>{% endif %}</td>
+    <td class="nowrap"><button class="b salvar">Salvar nome/cor</button> <button class="b mesclar">Mesclar em…</button> <button class="b danger excluir">Excluir…</button></td></tr>
+  {% empty %}<tr><td colspan="5" class="mut">Nenhum setor ainda. Crie acima ou importe a planilha do TopDesk.</td></tr>{% endfor %}
+  </tbody></table></div>
+</div>
+<dialog id="dlg" class="card" style="max-width:460px"></dialog>
+{{ urls|json_script:"u" }}
+{% endblock %}
+{% block scripts %}<script src="{% static 'inventario/js/comum.js' %}"></script><script src="{% static 'inventario/js/gerenciar.js' %}"></script>{% endblock %}

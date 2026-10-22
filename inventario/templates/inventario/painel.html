@@ -11,6 +11,10 @@
   <a class="card kpi" href="{% url 'lista' %}?status=backup"><div class="n">{{ status_tot.backup }}</div><div class="l">Em backup</div><small>Reserva disponível</small></a>
   <a class="card kpi" href="{% url 'auditoria' %}"><div class="n">{{ alertas }}</div><div class="l">Alertas de qualidade (altos)</div><small>{{ ausentes }} ausente(s) no TopDesk</small></a>
 </div>
+<div class="card" style="margin-top:12px"><h3>Pendências do dia a dia</h3><div class="tools" style="margin:0">
+  {% for k,nome,n in pendencias %}<a class="b" href="{% url 'lista' %}?p={{ k }}">{{ nome }} <b {% if n %}style="color:var(--red)"{% endif %}>{{ n }}</b></a>{% endfor %}
+  <a class="b p" href="{% url 'conferencia' %}">Iniciar conferência física</a></div>
+  <p class="mut" style="margin:8px 0 0">“Sem conferência recente” = não conferido há mais de {{ dias }} dias (ajustável pela variável <code>DIAS_CONFERENCIA</code>).</p></div>
 <div class="grid g2" style="margin-top:12px">
   <div class="card"><h3>Tipo × status</h3>
     <table><thead><tr><th>Tipo</th><th>Operacional</th><th>Backup</th><th>A instalar</th><th>Total</th></tr></thead><tbody>

@@ -233,6 +233,89 @@ class RelatorioTests(TestCase):
 
 
 @override_settings(MEDIA_ROOT="/tmp/inv_test_media")
+class DiaADiaTests(TestCase):
+    def setUp(self):
+        self.pav = Pavimento.objects.create(nome="Térreo", imagem=ContentFile(png_bytes(), "t.png"))
+        self.a = Setor.objects.create(nome="Produção")
+        self.b = Setor.objects.create(nome="Lab")
+        Area.objects.create(setor=self.a, pavimento=self.pav, pontos=QUADRADO)
+        self.e1 = Equipamento.objects.create(asset_id="PLP1", tipo="laptop", serial="SER1", responsavel="Ana", setor=self.a)
+        self.e2 = Equipamento.objects.create(asset_id="PLP2", tipo="laptop", serial="SER2", setor=self.a)  # operacional sem responsável
+        self.e3 = Equipamento.objects.create(asset_id="PPC1", tipo="tinypc", status="instalar", setor=self.b)
+
+    def post(self, nome, dados, *args):
+        return self.client.post(reverse(nome, args=args), json.dumps(dados), content_type="application/json")
+
+    def test_renomear_setor_e_nome_repetido(self):
+        self.assertEqual(self.post("api_setor_editar", {"nome": "Produção Líquidos", "cor": "#00ff00"}, self.a.pk).status_code, 200)
+        self.a.refresh_from_db()
+        self.assertEqual((self.a.nome, self.a.cor), ("Produção Líquidos", "#00ff00"))
+        self.assertEqual(self.post("api_setor_editar", {"nome": "lab"}, self.a.pk).status_code, 400)  # já existe (sem diferenciar maiúsculas)
+        self.assertEqual(self.post("api_setor_editar", {"nome": "  "}, self.a.pk).status_code, 400)
+
+    def test_mesclar_setores(self):
+        r = self.post("api_setor_mesclar", {"destino": self.b.pk}, self.a.pk)
+        self.assertEqual(r.json()["equipamentos_movidos"], 2)
+        self.assertFalse(Setor.objects.filter(pk=self.a.pk).exists())
+        self.assertEqual(Equipamento.objects.filter(setor=self.b).count(), 3)
+        self.assertEqual(Area.objects.get().setor_id, self.b.pk)  # a área da planta também passou
+        self.assertEqual(self.post("api_setor_mesclar", {"destino": self.b.pk}, self.b.pk).status_code, 400)
+
+    def test_excluir_setor_transferindo_ou_nao(self):
+        self.post("api_setor_excluir", {"transferir_para": self.b.pk}, self.a.pk)
+        self.assertEqual(Equipamento.objects.filter(setor=self.b).count(), 3)
+        self.post("api_setor_excluir", {}, self.b.pk)
+        self.assertEqual(Equipamento.objects.filter(setor__isnull=True).count(), 3)  # ficaram sem setor, nenhum apagado
+        self.assertEqual(Equipamento.objects.count(), 3)
+
+    def test_nota_e_historico_da_edicao(self):
+        self.assertEqual(self.post("api_nota", {"texto": "teclado quebrado"}, self.e1.pk).status_code, 200)
+        self.assertEqual(self.post("api_nota", {"texto": " "}, self.e1.pk).status_code, 400)
+        r = self.client.post(reverse("equipamento_editar", args=[self.e1.pk]), {
+            "asset_id": "PLP1", "tipo": "laptop", "status": "backup", "responsavel": "Bia", "serial": "SER1", "fornecedor": "", "setor": self.b.pk, "pavimento": "", "obs": ""})
+        self.assertEqual(r.status_code, 302)
+        det = Historico.objects.filter(asset_id="PLP1", evento="alterado").first().detalhe
+        self.assertIn("Responsável: Ana → Bia", det)
+        self.assertIn("Status: Operacional → Backup", det)
+        self.assertIn("Setor: Produção → Lab", det)
+        pagina = self.client.get(reverse("equipamento_editar", args=[self.e1.pk])).content.decode()
+        self.assertIn("teclado quebrado", pagina)
+
+    def test_conferencia_por_codigo_e_em_massa(self):
+        self.assertEqual(self.post("api_conferir", {"codigo": "plp1"}).json()["conferidos"][0]["asset_id"], "PLP1")  # sem diferenciar maiúsculas
+        self.assertEqual(self.post("api_conferir", {"codigo": "SER2"}).json()["conferidos"][0]["asset_id"], "PLP2")  # por nº de série
+        self.assertEqual(self.post("api_conferir", {"codigo": "NAOEXISTE"}).status_code, 400)
+        self.assertEqual(self.post("api_conferir", {"ids": [self.e3.pk]}).status_code, 200)
+        self.assertEqual(self.post("api_conferir", {"ids": []}).status_code, 400)
+        self.assertEqual(Equipamento.objects.filter(ultima_conferencia__isnull=False).count(), 3)
+        self.assertEqual(Historico.objects.filter(evento="conferencia").count(), 3)
+        r = self.client.get(reverse("conferencia"), {"setor": self.a.pk})
+        self.assertContains(r, "2</b> de <b>2")
+
+    def test_pendencias_na_lista_e_no_painel(self):
+        r = self.client.get(reverse("lista"), {"p": "sem_responsavel"})
+        self.assertContains(r, "PLP2"); self.assertNotContains(r, "PLP1")
+        self.assertContains(self.client.get(reverse("lista"), {"p": "a_instalar"}), "PPC1")
+        self.assertEqual(self.client.get(reverse("lista"), {"p": "conferencia"}).context["total"], 3)
+        self.post("api_conferir", {"ids": [self.e1.pk, self.e2.pk, self.e3.pk]})
+        self.assertEqual(self.client.get(reverse("lista"), {"p": "conferencia"}).context["total"], 0)
+        self.assertContains(self.client.get(reverse("painel")), "Pendências do dia a dia")
+
+    def test_busca_rapida(self):
+        r = self.client.get(reverse("buscar"), {"q": "ser2"})
+        self.assertRedirects(r, reverse("equipamento_editar", args=[self.e2.pk]))
+        r = self.client.get(reverse("buscar"), {"q": "PLP"})  # parcial → lista filtrada
+        self.assertEqual(r.status_code, 302); self.assertIn("/equipamentos/?q=PLP", r["Location"])
+
+    def test_etiquetas_e_paginas_novas(self):
+        for params in ({"ids": f"{self.e1.pk},{self.e2.pk}"}, {"tipo": "laptop"}, {"ids": "999"}):
+            r = self.client.get(reverse("etiquetas"), params)
+            self.assertEqual(r.status_code, 200); self.assertTrue(r.content.startswith(b"%PDF"))
+        for nome in ("conferencia", "setores_gerenciar"):
+            self.assertEqual(self.client.get(reverse(nome)).status_code, 200)
+
+
+@override_settings(MEDIA_ROOT="/tmp/inv_test_media")
 class ComandosTests(TestCase):
     def test_comandos_de_carga(self):
         from io import StringIO

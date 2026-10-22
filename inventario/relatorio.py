@@ -253,3 +253,44 @@ def _centroide(p):
     if abs(a) < 1e-9:
         return sum(q[0] for q in p) / len(p), sum(q[1] for q in p) / len(p)
     return cx / (3 * a), cy / (3 * a)
+
+
+def gerar_etiquetas(equipamentos, colunas=3, linhas=8):
+    """Folha A4 retrato de etiquetas (colunas x linhas). Cada uma: Asset ID, tipo, setor/andar, QR e Code128 do Asset ID."""
+    from reportlab.graphics import renderPDF
+    from reportlab.graphics.barcode import code128
+    from reportlab.graphics.barcode.qr import QrCodeWidget
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4, pageCompression=1)
+    W, H = A4
+    mx, my = 6 * mm, 10 * mm
+    cw, ch = (W - 2 * mx) / colunas, (H - 2 * my) / linhas
+    por_pagina = colunas * linhas
+    if not equipamentos:
+        c.setFont("Helvetica", 11); c.drawString(mx, H - 20 * mm, "Nenhum equipamento selecionado."); c.save(); return buf.getvalue()
+    for i, e in enumerate(equipamentos):
+        pos = i % por_pagina
+        if i and pos == 0:
+            c.showPage()
+        x = mx + (pos % colunas) * cw
+        y = H - my - (pos // colunas + 1) * ch
+        c.setStrokeColor(colors.HexColor("#c0c6cc")); c.setLineWidth(0.3); c.setDash(1, 2); c.roundRect(x + 1, y + 1, cw - 2, ch - 2, 2 * mm); c.setDash()
+        c.setFillColor(VERMELHO); c.setFont("Helvetica-Bold", 6.5); c.drawString(x + 3 * mm, y + ch - 5 * mm, "FAGRON · FSBR")
+        c.setFillColor(colors.black); c.setFont("Helvetica-Bold", 13); c.drawString(x + 3 * mm, y + ch - 11 * mm, e.asset_id)
+        c.setFont("Helvetica", 7); c.setFillColor(CINZA)
+        c.drawString(x + 3 * mm, y + ch - 15 * mm, e.get_tipo_display() + (f" · {e.serial}" if e.serial else ""))
+        local = " · ".join(v for v in (e.setor.nome if e.setor else "", e.pavimento.nome if e.pavimento else "") if v)
+        c.drawString(x + 3 * mm, y + ch - 18.5 * mm, local[:34])
+        bc = code128.Code128(e.asset_id, barHeight=7 * mm, barWidth=0.32 * mm, quiet=False)
+        if bc.width > cw - 8 * mm - 17 * mm:  # códigos longos: estreita as barras
+            bc = code128.Code128(e.asset_id, barHeight=7 * mm, barWidth=0.2 * mm, quiet=False)
+        bc.drawOn(c, x + 3 * mm, y + 3 * mm)
+        q = QrCodeWidget(e.asset_id, barLevel="M")
+        b = q.getBounds(); lado = 16 * mm
+        d = Drawing(lado, lado, transform=[lado / (b[2] - b[0]), 0, 0, lado / (b[3] - b[1]), 0, 0]); d.add(q)
+        renderPDF.draw(d, c, x + cw - lado - 3 * mm, y + ch - lado - 3 * mm)
+    c.save()
+    return buf.getvalue()

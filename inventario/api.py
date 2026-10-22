@@ -4,7 +4,9 @@ import re
 from functools import wraps
 
 from django.http import JsonResponse
+from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from . import geometria
@@ -105,10 +107,35 @@ def setor_editar(request, d, pk):
 
 @json_view
 def setor_excluir(request, d, pk):
+    """Exclui o setor e suas áreas. Os equipamentos vão para `transferir_para` (se informado) ou ficam sem setor."""
     s = get_object_or_404(Setor, pk=pk)
-    n = s.equipamentos.count()
-    s.delete()  # áreas somem junto; equipamentos ficam sem setor (SET_NULL)
+    destino = get_object_or_404(Setor, pk=d["transferir_para"]) if d.get("transferir_para") else None
+    if destino and destino.pk == s.pk:
+        raise ValueError("Escolha outro setor como destino.")
+    with transaction.atomic():
+        n = s.equipamentos.count()
+        if destino:
+            s.equipamentos.update(setor=destino)
+        Historico.objects.create(evento="setor", origem="setores", detalhe=(
+            f"Setor “{s.nome}” excluído; {n} equipamento(s) " + (f"transferido(s) para “{destino.nome}”" if destino else "ficaram sem setor")))
+        s.delete()  # áreas somem junto
     return {"ok": True, "equipamentos_afetados": n}
+
+
+@json_view
+def setor_mesclar(request, d, pk):
+    """Junta o setor `pk` em `destino`: equipamentos e áreas passam para o destino e o setor de origem deixa de existir."""
+    origem = get_object_or_404(Setor, pk=pk)
+    destino = get_object_or_404(Setor, pk=d.get("destino"))
+    if origem.pk == destino.pk:
+        raise ValueError("Escolha outro setor como destino.")
+    with transaction.atomic():
+        n = origem.equipamentos.update(setor=destino)
+        origem.areas.update(setor=destino)
+        Historico.objects.create(evento="setor", origem="setores",
+                                 detalhe=f"Setor “{origem.nome}” mesclado em “{destino.nome}” ({n} equipamento(s))")
+        origem.delete()
+    return {"ok": True, "equipamentos_movidos": n}
 
 
 def _area_dict(a):
@@ -154,3 +181,37 @@ def reatribuir(request, d):
         Historico.objects.create(asset_id="", evento="setor", origem="setores",
                                  detalhe=f"Setor reatribuído pela posição na planta em {len(mudados)} equipamento(s)")
     return {"ok": True, "alterados": len(mudados)}
+
+
+@json_view
+def nota(request, d, pk):
+    e = get_object_or_404(Equipamento, pk=pk)
+    texto = (d.get("texto") or "").strip()
+    if not texto:
+        raise ValueError("Escreva a nota.")
+    h = Historico.objects.create(asset_id=e.asset_id, evento="nota", detalhe=texto[:1000], origem="nota")
+    return {"ok": True, "quando": timezone.localtime(h.criado_em).strftime("%d/%m/%Y %H:%M"), "texto": h.detalhe}
+
+
+@json_view
+def conferir(request, d):
+    """Marca equipamentos como conferidos fisicamente hoje. Aceita `ids` (pks) ou `codigo` (Asset ID ou nº de série, p. ex. leitor de código de barras)."""
+    if d.get("codigo"):
+        cod = str(d["codigo"]).strip()
+        qs = Equipamento.objects.filter(asset_id__iexact=cod) or Equipamento.objects.filter(serial__iexact=cod)
+        if not qs:
+            raise ValueError(f"Nenhum equipamento com Asset ID ou série “{cod}”.")
+    else:
+        ids = [int(i) for i in d.get("ids", []) if str(i).isdigit()]
+        if not ids:
+            raise ValueError("Nada selecionado.")
+        qs = Equipamento.objects.filter(pk__in=ids)
+    agora = timezone.now()
+    res = []
+    for e in qs:
+        e.ultima_conferencia = agora
+        e.save(update_fields=["ultima_conferencia"])
+        Historico.objects.create(asset_id=e.asset_id, evento="conferencia", detalhe="Conferido fisicamente", origem="conferência")
+        res.append({"id": e.pk, "asset_id": e.asset_id, "tipo": e.get_tipo_display(), "responsavel": e.responsavel,
+                    "setor": e.setor.nome if e.setor else "", "ausente": e.ausente})
+    return {"ok": True, "conferidos": res}

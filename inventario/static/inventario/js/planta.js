@@ -152,5 +152,7 @@
     clearTimeout(salvar.h); salvar.h = setTimeout(() => salvar(e, pav, e.x, e.y), 350);
   });
 
+  const alvo = +P.get('sel');   // vindo de "Ver na planta" na ficha do equipamento
+  if (alvo && porId.has(alvo)) { const e = porId.get(alvo); sel = alvo; if (e.pavimento && e.x !== null) pav = e.pavimento; else if (e.pavimento) pav = e.pavimento; }
   construir();
 })();
