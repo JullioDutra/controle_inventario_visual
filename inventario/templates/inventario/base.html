@@ -1,0 +1,30 @@
+{% load static %}<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token }}">
+<link rel="icon" href="data:,">
+<title>{% block titulo %}Inventário Visual{% endblock %} · FSBR</title>
+<link rel="stylesheet" href="{% static 'inventario/css/app.css' %}">
+</head>
+<body class="{% block bodyclass %}{% endblock %}">
+<header class="topo">
+  <div class="marca"><span class="pontos" aria-hidden="true"></span><strong>Fagron</strong><span class="sub">Inventário visual · FSBR</span></div>
+  <nav>
+    {% url 'painel' as u_painel %}{% url 'planta' as u_planta %}{% url 'editor' as u_editor %}{% url 'lista' as u_lista %}{% url 'importar' as u_imp %}{% url 'auditoria' as u_aud %}
+    <a href="{{ u_painel }}" {% if request.path == u_painel %}class="on"{% endif %}>Painel</a>
+    <a href="{{ u_planta }}" {% if request.path == u_planta %}class="on"{% endif %}>Planta</a>
+    <a href="{{ u_editor }}" {% if request.path == u_editor %}class="on"{% endif %}>Setores na planta</a>
+    <a href="{{ u_lista }}" {% if '/equipamentos' in request.path %}class="on"{% endif %}>Equipamentos</a>
+    <a href="{{ u_imp }}" {% if '/importar' in request.path %}class="on"{% endif %}>Importar TopDesk</a>
+    <a href="{{ u_aud }}" {% if request.path == u_aud %}class="on"{% endif %}>Histórico &amp; qualidade</a>
+    <a href="/admin/" class="mut-link">Admin</a>
+  </nav>
+</header>
+{% if messages %}<div class="msgs">{% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}</div>{% endif %}
+<main>{% block conteudo %}{% endblock %}</main>
+<div id="toast" role="status"></div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,16 @@
+{% extends "inventario/base.html" %}
+{% block titulo %}{% if obj %}{{ obj.asset_id }}{% else %}Novo equipamento{% endif %}{% endblock %}
+{% block conteudo %}
+<div class="card" style="max-width:720px;margin:auto">
+<h2 style="margin-top:0">{% if obj %}Editar {{ obj.asset_id }}{% else %}Novo equipamento{% endif %}</h2>
+<form method="post" class="form">{% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="fgrid">{% for f in form %}<div class="{% if f.name == 'obs' %}full{% endif %}"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}</div>
+  {% if obj %}<p class="mut">Campos do TopDesk (tipo, status, responsável, série, fornecedor, obs) são sobrescritos na próxima importação quando a coluna existir na planilha. Setor, andar e posição na planta são mantidos.
+    {% if obj.posicionado %}<br>📍 Posição atual: {{ obj.pos_x|floatformat:1 }}% / {{ obj.pos_y|floatformat:1 }}% — mude na aba <a href="{% url 'planta' %}">Planta</a>.{% endif %}</p>
+  {% if obj.extras %}<details><summary>Colunas extras da planilha</summary><table>{% for k,v in obj.extras.items %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}</table></details>{% endif %}{% endif %}
+  <div class="tools" style="margin-top:14px"><button class="b p">Salvar</button><a class="b" href="{% url 'lista' %}">Cancelar</a></div>
+</form>
+{% if obj %}<form method="post" action="{% url 'equipamento_excluir' obj.pk %}" onsubmit="return confirm('Excluir {{ obj.asset_id }}?')">{% csrf_token %}<button class="b danger">Excluir equipamento</button></form>{% endif %}
+</div>
+{% endblock %}

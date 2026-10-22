@@ -1,0 +1,16 @@
+{% extends "inventario/base.html" %}
+{% load static %}
+{% block titulo %}Planta{% endblock %}
+{% block bodyclass %}wide{% endblock %}
+{% block conteudo %}
+{% if sem_plantas %}<div class="card">Nenhuma planta cadastrada. Rode <code>python manage.py carregar_plantas</code> ou cadastre pelo <a href="/admin/inventario/pavimento/">Admin</a>.</div>
+{% else %}
+<div class="tools" id="barra"></div>
+<div class="planta">
+  <div><div class="dica" id="dica"></div><div class="mapa" id="mapa"></div></div>
+  <aside class="lado" id="lado"></aside>
+</div>
+{{ dados|json_script:"dados" }}
+{% endif %}
+{% endblock %}
+{% block scripts %}{% if not sem_plantas %}<script src="{% static 'inventario/js/comum.js' %}"></script><script src="{% static 'inventario/js/planta.js' %}"></script>{% endif %}{% endblock %}

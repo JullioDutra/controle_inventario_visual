@@ -1,0 +1,36 @@
+{% extends "inventario/base.html" %}
+{% block titulo %}Equipamentos{% endblock %}
+{% block conteudo %}
+<form method="get" class="tools">
+  <input type="search" name="q" placeholder="Buscar ID, série, pessoa, setor…" value="{{ g.q }}" style="min-width:240px">
+  <select name="tipo"><option value="">Todos os tipos</option>{% for v,n in tipos %}<option value="{{ v }}" {% if g.tipo == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+  <select name="status"><option value="">Todos os status</option>{% for v,n in status %}<option value="{{ v }}" {% if g.status == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+  <select name="setor"><option value="">Todos os setores</option><option value="none" {% if g.setor == 'none' %}selected{% endif %}>Sem setor</option>{% for s in setores %}<option value="{{ s.pk }}" {% if g.setor == s.pk|stringformat:'s' %}selected{% endif %}>{{ s.nome }}</option>{% endfor %}</select>
+  <select name="pavimento"><option value="">Todos os andares</option><option value="none" {% if g.pavimento == 'none' %}selected{% endif %}>Sem posição na planta</option>{% for p in pavimentos %}<option value="{{ p.pk }}" {% if g.pavimento == p.pk|stringformat:'s' %}selected{% endif %}>{{ p.nome }}</option>{% endfor %}</select>
+  <label class="chk"><input type="checkbox" name="ausente" value="1" {% if g.ausente == '1' %}checked{% endif %}> só ausentes</label>
+  <button class="b" type="submit">Filtrar</button><a class="b" href="{% url 'lista' %}">Limpar</a>
+  <span class="mut">{{ total }} resultado(s)</span><span style="flex:1"></span>
+  <a class="b" href="{% url 'equipamento_novo' %}">+ Equipamento</a>
+  <a class="b p" href="{% url 'exportar' %}?{{ qs }}">Exportar Excel</a>
+</form>
+<details class="card" style="margin-bottom:12px"><summary>Atribuir os {{ total }} equipamentos filtrados a um setor / andar</summary>
+  <form method="post" action="{% url 'lote' %}?{{ qs }}" class="tools" style="margin:10px 0 0">{% csrf_token %}
+    <input name="setor" list="dl-setores" placeholder="Setor (deixe vazio para não alterar)">
+    <datalist id="dl-setores">{% for s in setores %}<option value="{{ s.nome }}">{% endfor %}</datalist>
+    <select name="pavimento"><option value="">Andar (não alterar)</option>{% for p in pavimentos %}<option value="{{ p.pk }}">{{ p.nome }}</option>{% endfor %}</select>
+    <button class="b p" onclick="return confirm('Aplicar aos {{ total }} equipamentos filtrados?')">Aplicar</button>
+    <span class="mut">Mudar de andar limpa a posição exata na planta.</span></form></details>
+<div class="tw"><table><thead><tr>
+  <th>Asset ID</th><th>Tipo</th><th>Status</th><th>Responsável</th><th>Setor</th><th>Andar</th><th>Planta</th><th>Nº série</th><th>Obs</th></tr></thead><tbody>
+{% for e in pag %}<tr class="{% if e.ausente %}ausente{% endif %}" onclick="location='{% url 'equipamento_editar' e.pk %}'">
+  <td><b>{{ e.asset_id }}</b>{% if e.ausente %} <span title="Ausente no último TopDesk">⚠️</span>{% endif %}</td>
+  <td><span class="pill tp-{{ e.tipo }}">{{ e.get_tipo_display }}</span></td><td><span class="pill st-{{ e.status }}">{{ e.get_status_display }}</span></td>
+  <td>{{ e.responsavel|default:"—" }}</td><td>{{ e.setor.nome|default:"—" }}</td><td>{{ e.pavimento.nome|default:"—" }}</td>
+  <td>{% if e.posicionado %}📍{% else %}<span class="mut">—</span>{% endif %}</td><td>{{ e.serial }}</td><td class="mut">{{ e.obs|truncatechars:60 }}</td></tr>
+{% empty %}<tr><td colspan="9" class="mut">Nenhum equipamento. Importe a planilha do TopDesk na aba <a href="{% url 'importar' %}">Importar</a>.</td></tr>{% endfor %}
+</tbody></table></div>
+{% if pag.paginator.num_pages > 1 %}<p class="pager">
+  {% if pag.has_previous %}<a class="b" href="?{{ qs }}&page={{ pag.previous_page_number }}">‹ anterior</a>{% endif %}
+  Página {{ pag.number }} de {{ pag.paginator.num_pages }}
+  {% if pag.has_next %}<a class="b" href="?{{ qs }}&page={{ pag.next_page_number }}">próxima ›</a>{% endif %}</p>{% endif %}
+{% endblock %}

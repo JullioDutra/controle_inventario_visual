@@ -1,0 +1,19 @@
+{% extends "inventario/base.html" %}
+{% block titulo %}Pré-visualização{% endblock %}
+{% block conteudo %}
+<div class="card"><h2 style="margin-top:0">{{ imp.arquivo }} <span class="mut" style="font-size:14px">· {{ imp.get_estado_display }}</span></h2>
+<div class="grid g4">
+  <div class="kpi"><div class="n" style="color:var(--ok)">{{ imp.resumo.novos }}</div><div class="l">novos</div></div>
+  <div class="kpi"><div class="n" style="color:var(--info)">{{ imp.resumo.alterados }}</div><div class="l">alterados</div></div>
+  <div class="kpi"><div class="n">{{ imp.resumo.iguais }}</div><div class="l">sem mudança</div></div>
+  <div class="kpi"><div class="n" style="color:var(--warn)">{{ imp.resumo.ausentes }}</div><div class="l">ausentes no arquivo</div></div>
+</div>
+{% if imp.resumo.duplicados %}<p class="sev media">{{ imp.resumo.duplicados }} linha(s) com Asset ID repetido foram ignoradas.</p>{% endif %}
+<p class="mut">Abas lidas: {% for a in imp.abas %}{{ a.nome }} ({{ a.n }}){% if not forloop.last %}, {% endif %}{% endfor %}</p>
+{% if imp.estado == 'pendente' %}<form method="post" class="tools">{% csrf_token %}
+  <button class="b p" formaction="{% url 'importacao_aplicar' imp.pk %}">Aplicar importação</button>
+  <button class="b" formaction="{% url 'importacao_cancelar' imp.pk %}">Cancelar</button></form>{% endif %}
+<div class="tw" style="max-height:55vh"><table><tbody>{% for m in mudancas %}<tr><td><b>{{ m.id }}</b></td><td>{{ m.evento }}</td><td>{{ m.detalhe }}</td></tr>
+{% empty %}<tr><td class="mut">Nada a alterar.</td></tr>{% endfor %}</tbody></table></div>
+{% if cortado %}<p class="mut">Mostrando as primeiras 500 mudanças; todas serão aplicadas.</p>{% endif %}</div>
+{% endblock %}

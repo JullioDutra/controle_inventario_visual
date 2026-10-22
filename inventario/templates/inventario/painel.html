@@ -1,0 +1,33 @@
+{% extends "inventario/base.html" %}
+{% block titulo %}Painel{% endblock %}
+{% block conteudo %}
+<div class="grid g4">
+  <a class="card kpi" href="{% url 'lista' %}"><div class="n">{{ total }}</div><div class="l">Total de equipamentos</div>
+    <small>{{ status_tot.operacional }} operacionais · {{ status_tot.backup }} em backup · {{ status_tot.instalar }} a instalar</small></a>
+  {% for t in tipos %}
+  <a class="card kpi" href="{% url 'lista' %}?tipo={{ t.chave }}"><div class="n">{{ t.total }}</div><div class="l"><span class="pill tp-{{ t.chave }}">{{ t.nome }}</span></div>
+    <small>{{ t.status.operacional }} operac. · {{ t.status.backup }} backup · {{ t.status.instalar }} a instalar</small></a>
+  {% endfor %}
+  <a class="card kpi" href="{% url 'lista' %}?status=backup"><div class="n">{{ status_tot.backup }}</div><div class="l">Em backup</div><small>Reserva disponível</small></a>
+  <a class="card kpi" href="{% url 'auditoria' %}"><div class="n">{{ alertas }}</div><div class="l">Alertas de qualidade (altos)</div><small>{{ ausentes }} ausente(s) no TopDesk</small></a>
+</div>
+<div class="grid g2" style="margin-top:12px">
+  <div class="card"><h3>Tipo × status</h3>
+    <table><thead><tr><th>Tipo</th><th>Operacional</th><th>Backup</th><th>A instalar</th><th>Total</th></tr></thead><tbody>
+    {% for t in tipos %}<tr><td><span class="pill tp-{{ t.chave }}">{{ t.nome }}</span></td>
+      <td><a href="{% url 'lista' %}?tipo={{ t.chave }}&status=operacional">{{ t.status.operacional }}</a></td>
+      <td><a href="{% url 'lista' %}?tipo={{ t.chave }}&status=backup">{{ t.status.backup }}</a></td>
+      <td><a href="{% url 'lista' %}?tipo={{ t.chave }}&status=instalar">{{ t.status.instalar }}</a></td><td><b>{{ t.total }}</b></td></tr>{% endfor %}
+    </tbody></table></div>
+  <div class="card"><h3>Posicionados por andar</h3>
+    {% for p in pavimentos %}<a class="lin" href="{% url 'planta' %}?pav={{ p.pk }}"><span>{{ p.nome }}</span><div class="barra"><i style="width:{% if total %}{% widthratio p.n total 100 %}{% else %}0{% endif %}%;background:#1f6feb"></i></div><span>{{ p.n }}</span></a>
+    {% empty %}<p class="mut">Nenhum andar cadastrado. Rode <code>python manage.py carregar_plantas</code> ou use o Admin.</p>{% endfor %}
+    <a class="lin" href="{% url 'lista' %}?pavimento=none"><span><i class="mut">Sem posição na planta</i></span><div class="barra"><i style="width:{% if total %}{% widthratio sem_pos total 100 %}{% else %}0{% endif %}%;background:#bf8700"></i></div><span>{{ sem_pos }}</span></a>
+  </div>
+  <div class="card" style="grid-column:1/-1"><h3>Equipamentos por setor <span class="mut">(clique para filtrar)</span></h3>
+    {% for s in setores %}<a class="lin" href="{% url 'lista' %}?setor={% if s.id %}{{ s.id }}{% else %}none{% endif %}"><span>{{ s.nome }}</span>
+      <div style="width:{{ s.largura|floatformat:"2u" }}%"><div class="barra">{% for g in s.segmentos %}<i class="st-{{ g.status }}" style="width:{{ g.pct|floatformat:"2u" }}%" title="{{ g.status }}: {{ g.n }}"></i>{% endfor %}</div></div><span>{{ s.total }}</span></a>
+    {% empty %}<p class="mut">Sem dados ainda. Importe a planilha do TopDesk.</p>{% endfor %}
+    <div class="leg"><span><b class="st-operacional"></b>Operacional</span><span><b class="st-backup"></b>Backup</span><span><b class="st-instalar"></b>A instalar</span><span><b class="st-outro"></b>Outro</span></div></div>
+</div>
+{% endblock %}
