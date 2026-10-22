@@ -21,6 +21,7 @@ Admin do Django (opcional): `python manage.py createsuperuser` → `/admin/`.
 | **Setores na planta** | Crie o setor (nome/cor), **desenhe a área** (retângulo ou polígono) sobre a planta, **mova** arrastando, **remodele** arrastando os pontos, crie vértice nos pontos tracejados, duplo clique remove vértice, `Delete` exclui. Um setor pode ter várias áreas (inclusive em andares diferentes). Botão *Reatribuir setor pela posição* recalcula os equipamentos. |
 | **Equipamentos** | Busca, filtros, edição, cadastro manual, atribuição em lote (setor/andar dos itens filtrados), exportação para Excel. |
 | **Importar TopDesk** | Envie `.xlsx`/`.csv` → **pré-visualização** (novos, alterados, sem mudança, ausentes) → aplicar. |
+| **Relatório PDF** | Gera um PDF A4 paisagem: página de **resumo** (total, tipo × status, por andar, por setor) e **uma página por andar** com a planta, as áreas dos setores, a quantidade de ativos por setor, os pinos dos equipamentos e a tabela de contagens. Opções: escolher andares, ocultar pinos, anexar lista de equipamentos por setor; abrir no navegador ou baixar. |
 | **Histórico & qualidade** | Trilha de auditoria (quem/onde/antes→depois, com arquivo de origem) e verificações de qualidade dos dados. |
 
 ## Regras da importação (a planilha é o “atualizador de chaves”)
@@ -42,7 +43,8 @@ inventario/
   templates/ static/ (planta.js, editor.js, comum.js)
   seed/            plantas PNG + planilha de exemplo
   management/commands/  carregar_plantas, carregar_exemplo
-  tests/           16 testes
+  tests/           20 testes
+  relatorio.py     geração do PDF (reportlab)
 ```
 Testes: `python manage.py test`.
 Backup: copie `db.sqlite3` e a pasta `media/`.

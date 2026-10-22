@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from . import importador, qualidade
+from . import importador, qualidade, relatorio
 from .forms import EquipamentoForm, ImportacaoForm, LoteForm
 from .models import Area, Equipamento, Historico, Importacao, Pavimento, Setor
 
@@ -230,3 +230,17 @@ def importacao_cancelar(request, pk):
 def auditoria(request):
     return render(request, "inventario/auditoria.html", {
         "achados": qualidade.verificar(), "historico": Historico.objects.all()[:300]})
+
+
+# ---------------- relatório PDF ----------------
+def relatorio_pagina(request):
+    return render(request, "inventario/relatorio.html", {"pavimentos": Pavimento.objects.all(), "total": Equipamento.objects.filter(ausente=False).count()})
+
+
+def relatorio_pdf(request):
+    g = request.GET
+    ids = {int(x) for x in g.getlist("pav") if x.isdigit()}
+    pdf = relatorio.gerar_pdf(pavimento_ids=ids or None, pinos="1" in g.getlist("pinos") or "pinos" not in g, lista=g.get("lista") == "1")
+    r = HttpResponse(pdf, content_type="application/pdf")
+    r["Content-Disposition"] = f'{"attachment" if g.get("baixar") == "1" else "inline"}; filename="inventario-fsbr-{date.today():%Y-%m-%d}.pdf"'
+    return r

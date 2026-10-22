@@ -12,13 +12,14 @@
 <header class="topo">
   <div class="marca"><span class="pontos" aria-hidden="true"></span><strong>Fagron</strong><span class="sub">Inventário visual · FSBR</span></div>
   <nav>
-    {% url 'painel' as u_painel %}{% url 'planta' as u_planta %}{% url 'editor' as u_editor %}{% url 'lista' as u_lista %}{% url 'importar' as u_imp %}{% url 'auditoria' as u_aud %}
+    {% url 'painel' as u_painel %}{% url 'planta' as u_planta %}{% url 'editor' as u_editor %}{% url 'lista' as u_lista %}{% url 'importar' as u_imp %}{% url 'auditoria' as u_aud %}{% url 'relatorio' as u_rel %}
     <a href="{{ u_painel }}" {% if request.path == u_painel %}class="on"{% endif %}>Painel</a>
     <a href="{{ u_planta }}" {% if request.path == u_planta %}class="on"{% endif %}>Planta</a>
     <a href="{{ u_editor }}" {% if request.path == u_editor %}class="on"{% endif %}>Setores na planta</a>
     <a href="{{ u_lista }}" {% if '/equipamentos' in request.path %}class="on"{% endif %}>Equipamentos</a>
     <a href="{{ u_imp }}" {% if '/importar' in request.path %}class="on"{% endif %}>Importar TopDesk</a>
     <a href="{{ u_aud }}" {% if request.path == u_aud %}class="on"{% endif %}>Histórico &amp; qualidade</a>
+    <a href="{{ u_rel }}" {% if request.path == u_rel %}class="on"{% endif %}>Relatório PDF</a>
     <a href="/admin/" class="mut-link">Admin</a>
   </nav>
 </header>

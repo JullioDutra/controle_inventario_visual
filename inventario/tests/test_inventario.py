@@ -183,6 +183,55 @@ class TelasEApiTests(TestCase):
         self.assertIsNone(Equipamento.objects.get(asset_id="PLP1").setor)
 
 
+def png_bytes():
+    from io import BytesIO
+    from PIL import Image
+    b = BytesIO(); Image.new("RGB", (400, 120), "white").save(b, "PNG"); return b.getvalue()
+
+
+@override_settings(MEDIA_ROOT="/tmp/inv_test_media")
+class RelatorioTests(TestCase):
+    def setUp(self):
+        self.pav = Pavimento.objects.create(nome="Térreo", imagem=ContentFile(png_bytes(), "t.png"))
+        self.pav2 = Pavimento.objects.create(nome="1º", ordem=1, imagem=ContentFile(png_bytes(), "u.png"))
+        self.s = Setor.objects.create(nome="Produção")
+        Area.objects.create(setor=self.s, pavimento=self.pav, pontos=QUADRADO)
+        Area.objects.create(setor=self.s, pavimento=self.pav, pontos=[[60, 60], [90, 60], [90, 90]])  # 2ª área, mesmo setor
+        Equipamento.objects.create(asset_id="PLP1", tipo="laptop", pavimento=self.pav, pos_x=20, pos_y=20, setor=self.s)
+        Equipamento.objects.create(asset_id="PIM1", tipo="impressora", status="backup", pavimento=self.pav, pos_x=70, pos_y=70, setor=self.s)
+        Equipamento.objects.create(asset_id="PPC1", tipo="tinypc", ausente=True)
+
+    def pdf(self, **q):
+        r = self.client.get(reverse("relatorio_pdf"), q)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "application/pdf")
+        self.assertTrue(r.content.startswith(b"%PDF"))
+        return r
+
+    def test_pdf_variacoes(self):
+        self.pdf()
+        self.pdf(pinos="0")
+        self.pdf(pav=self.pav.pk, lista="1")
+        self.assertIn("attachment", self.pdf(baixar="1")["Content-Disposition"])
+        self.assertIn("inline", self.pdf()["Content-Disposition"])
+
+    def test_contagens_do_relatorio(self):
+        from inventario.relatorio import _linha_contagem
+        # [nome, laptop, tiny, impressora, outro, total, operacional, backup, instalar]
+        self.assertEqual(_linha_contagem("X", [("laptop", "operacional"), ("impressora", "backup"), ("tinypc", "instalar"), ("outro", "outro")]),
+                         ["X", 1, 1, 1, 1, 4, 1, 1, 1])
+
+    def test_pdf_sem_dados_e_sem_plantas(self):
+        Equipamento.objects.all().delete()
+        Area.objects.all().delete()
+        self.pdf()
+        Pavimento.objects.all().delete()
+        self.pdf(lista="1")
+
+    def test_pagina_do_relatorio(self):
+        self.assertContains(self.client.get(reverse("relatorio")), "Exportar relatório em PDF")
+
+
 @override_settings(MEDIA_ROOT="/tmp/inv_test_media")
 class ComandosTests(TestCase):
     def test_comandos_de_carga(self):

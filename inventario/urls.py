@@ -16,6 +16,8 @@ urlpatterns = [
     path("importar/<int:pk>/", views.importacao_detalhe, name="importacao"),
     path("importar/<int:pk>/aplicar/", views.importacao_aplicar, name="importacao_aplicar"),
     path("importar/<int:pk>/cancelar/", views.importacao_cancelar, name="importacao_cancelar"),
+    path("relatorio/", views.relatorio_pagina, name="relatorio"),
+    path("relatorio/pdf/", views.relatorio_pdf, name="relatorio_pdf"),
     path("auditoria/", views.auditoria, name="auditoria"),
     # API JSON usada pelas telas Planta e Setores
     path("api/equipamentos/<int:pk>/posicao/", api.posicao, name="api_posicao"),
