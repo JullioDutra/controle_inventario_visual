@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inventário Visual FSBR</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topo">
+  <div class="marca"><span class="pontos" aria-hidden="true"></span><strong>Fagron</strong><span class="sub">Inventário visual · FSBR</span></div>
+  <nav id="abas" role="tablist">
+    <button data-aba="painel" class="on">Painel</button>
+    <button data-aba="planta">Planta</button>
+    <button data-aba="lista">Equipamentos</button>
+    <button data-aba="importar">Importar TopDesk</button>
+    <button data-aba="auditoria">Histórico & qualidade</button>
+  </nav>
+</header>
+<main id="main"></main>
+<dialog id="dlg"></dialog>
+<div id="toast" role="status"></div>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="data/core.js"></script>
+<script src="data/seed.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
